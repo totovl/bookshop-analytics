@@ -656,6 +656,18 @@
             <select id="paymentFilter"><option value="all">Todos los métodos</option></select>
         </div>
         <div class="filter-separator"></div>
+        <div class="filter-group">
+            <label for="currencySelect">Moneda</label>
+            <select id="currencySelect" style="min-width: 80px;">
+                <option value="ARS" selected>ARS</option>
+                <option value="USD">USD</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="exchangeRate">Cotización</label>
+            <input type="number" id="exchangeRate" value="1550" min="1" style="width: 80px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'Inter', sans-serif; font-size: 13px; outline: none; background: var(--bg-body); color: var(--text-primary);">
+        </div>
+        <div class="filter-separator"></div>
         <button class="btn-reset" onclick="resetFilters()">Restablecer filtros</button>
     </div>
 
@@ -725,7 +737,7 @@
 
     <!-- HEATMAP -->
     <div class="card" style="margin-bottom: 32px;">
-        <div class="card-title">🗺️ Mapa de Calor Mensual — Ventas por Género</div>
+        <div class="card-title" id="heatmapTitle">🗺️ Mapa de Calor Mensual — Ventas por Género</div>
         <div class="card-subtitle">Identifica picos y ciclos estacionales para planificar campañas de marketing y stock</div>
         <div class="chart-container"><canvas id="chartHeatmap" height="280"></canvas></div>
     </div>
@@ -763,6 +775,10 @@ const COMISIONES = {"Efectivo":0,"Mercado Pago":0.035,"Tarjeta de Crédito":0.02
 const PALETTE = ['#6C5CE7','#A29BFE','#00B894','#74B9FF','#E17055','#FDCB6E','#FD79A8','#00CEC9','#636E72','#55EFC4','#0984E3','#D63031','#E84393','#2D3436','#B2BEC3'];
 let charts = {};
 
+let currencyFactor = 1.0;
+let currencySymbol = '$';
+let selectedCurrency = 'ARS';
+
 document.addEventListener('DOMContentLoaded', () => {
     populateFilters();
     applyFilters();
@@ -770,6 +786,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('dateTo').addEventListener('change', applyFilters);
     document.getElementById('genreFilter').addEventListener('change', applyFilters);
     document.getElementById('paymentFilter').addEventListener('change', applyFilters);
+    document.getElementById('currencySelect').addEventListener('change', applyFilters);
+    document.getElementById('exchangeRate').addEventListener('input', applyFilters);
     setupScrollSpy();
 });
 
@@ -785,6 +803,8 @@ function resetFilters() {
     document.getElementById('dateTo').value = DATE_MAX;
     document.getElementById('genreFilter').value = 'all';
     document.getElementById('paymentFilter').value = 'all';
+    document.getElementById('currencySelect').value = 'ARS';
+    document.getElementById('exchangeRate').value = '1550';
     applyFilters();
 }
 
@@ -793,6 +813,12 @@ function applyFilters() {
     const to = document.getElementById('dateTo').value;
     const genre = document.getElementById('genreFilter').value;
     const payment = document.getElementById('paymentFilter').value;
+    
+    selectedCurrency = document.getElementById('currencySelect').value;
+    const rate = parseFloat(document.getElementById('exchangeRate').value) || 1.0;
+    currencyFactor = selectedCurrency === 'ARS' ? rate : 1.0;
+    currencySymbol = selectedCurrency === 'ARS' ? '$' : 'US$';
+
     let count = 0;
     if (from !== DATE_MIN) count++;
     if (to !== DATE_MAX) count++;
@@ -828,7 +854,7 @@ function applyFilters() {
 }
 
 function calcKPIs(data) {
-    const ingresos = data.reduce((s, r) => s + r.total, 0);
+    const ingresos = data.reduce((s, r) => s + r.total * currencyFactor, 0);
     const unidades = data.reduce((s, r) => s + r.cantidad, 0);
     const txns = new Set(data.map(r => r.id)).size;
     const ticket = txns > 0 ? ingresos / txns : 0;
@@ -845,7 +871,7 @@ function renderKPIs(filtered, prevFiltered) {
     const curr = calcKPIs(filtered);
     const prev = calcKPIs(prevFiltered);
     const genMap = {};
-    filtered.forEach(r => { genMap[r.genero] = (genMap[r.genero] || 0) + r.total; });
+    filtered.forEach(r => { genMap[r.genero] = (genMap[r.genero] || 0) + r.total * currencyFactor; });
     let generoLider = 'N/A', porcentajeLider = 0, maxGen = 0;
     for (const [g, v] of Object.entries(genMap)) { if (v > maxGen) { maxGen = v; generoLider = g; } }
     if (curr.ingresos > 0) porcentajeLider = (maxGen / curr.ingresos * 100);
@@ -858,9 +884,9 @@ function renderKPIs(filtered, prevFiltered) {
     const d3 = getDelta(curr.ticket, prev.ticket);
     const d4 = getDelta(curr.txns, prev.txns);
     document.getElementById('kpiGrid').innerHTML =
-        kpiCard('Ingresos Totales', '$' + formatNum(curr.ingresos), d1, '💰', 'purple', '', 1) +
+        kpiCard('Ingresos Totales', currencySymbol + ' ' + formatNum(curr.ingresos), d1, '💰', 'purple', '', 1) +
         kpiCard('Unidades Vendidas', formatInt(curr.unidades), d2, '📦', 'green', '', 2) +
-        kpiCard('Ticket Promedio', '$' + curr.ticket.toFixed(2), d3, '🧾', 'blue', '', 3) +
+        kpiCard('Ticket Promedio', currencySymbol + ' ' + curr.ticket.toFixed(2), d3, '🧾', 'blue', '', 3) +
         kpiCard('Transacciones', formatInt(curr.txns), d4, '🔄', 'orange', '', 4) +
         kpiCard('Categoría Líder', generoLider, { str: porcentajeLider.toFixed(1) + '%', status: 'neutral' }, '🏆', 'purple', 'Participación Ventas', 5) +
         kpiCard('Bestseller', bestseller.length > 25 ? bestseller.slice(0,22) + '...' : bestseller, { str: bestsellerQty + ' uds', status: 'up' }, '⭐', 'green', 'Reposición Activa', 6);
@@ -878,7 +904,7 @@ function kpiCard(label, value, delta, icon, iconClass, subtext, delay) {
 
 function renderEvolucion(filtered) {
     const monthGenre = {}, months = new Set(), genres = new Set();
-    filtered.forEach(r => { months.add(r.año_mes); genres.add(r.genero); const k = r.año_mes + '|' + r.genero; monthGenre[k] = (monthGenre[k] || 0) + r.total; });
+    filtered.forEach(r => { months.add(r.año_mes); genres.add(r.genero); const k = r.año_mes + '|' + r.genero; monthGenre[k] = (monthGenre[k] || 0) + r.total * currencyFactor; });
     const sM = [...months].sort(), sG = [...genres].sort();
     const datasets = sG.map((g, i) => ({
         label: g, data: sM.map(m => monthGenre[m + '|' + g] || 0),
@@ -890,19 +916,19 @@ function renderEvolucion(filtered) {
         type: 'line', data: { labels: sM, datasets },
         options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
             plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 16, usePointStyle: true, pointStyle: 'circle' } },
-                tooltip: { backgroundColor: '#1B1F3B', titleFont: { family: 'Inter', weight: '600' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': $' + formatNum(ctx.parsed.y) } } },
+                tooltip: { backgroundColor: '#1B1F3B', titleFont: { family: 'Inter', weight: '600' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': ' + currencySymbol + ' ' + formatNum(ctx.parsed.y) } } },
             scales: { x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, maxRotation: 45 } },
-                y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) } } } }
+                y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => currencySymbol + ' ' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) } } } }
     });
 }
 
 function renderDonut(filtered) {
     const payMap = {};
-    filtered.forEach(r => { payMap[r.metodo_pago] = (payMap[r.metodo_pago] || 0) + r.total; });
+    filtered.forEach(r => { payMap[r.metodo_pago] = (payMap[r.metodo_pago] || 0) + r.total * currencyFactor; });
     const labels = Object.keys(payMap).sort(), values = labels.map(l => payMap[l]);
     const totalComision = labels.reduce((s, l) => s + (payMap[l] * (COMISIONES[l] || 0)), 0);
-    document.getElementById('comisionValue').textContent = '$' + formatNum(totalComision);
-    document.getElementById('insightComisiones').innerHTML = '<strong>💡 Análisis de pasarelas</strong>Se estiman pérdidas de <strong>$' + formatNum(totalComision) + '</strong> por aranceles bancarios. Incentivar Transferencias y Efectivo para reducir el impacto financiero.';
+    document.getElementById('comisionValue').textContent = currencySymbol + ' ' + formatNum(totalComision);
+    document.getElementById('insightComisiones').innerHTML = '<strong>💡 Análisis de pasarelas</strong>Se estiman pérdidas de <strong>' + currencySymbol + ' ' + formatNum(totalComision) + '</strong> por aranceles bancarios. Incentivar Transferencias y Efectivo para reducir el impacto financiero.';
     const donutColors = ['#6C5CE7', '#A29BFE', '#74B9FF', '#00B894', '#FDCB6E'];
     destroyChart('chartDonut');
     charts.chartDonut = new Chart(document.getElementById('chartDonut'), {
@@ -910,7 +936,7 @@ function renderDonut(filtered) {
         options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
             plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
                 tooltip: { backgroundColor: '#1B1F3B', titleFont: { family: 'Inter', weight: '600' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8,
-                    callbacks: { label: ctx => { const t = ctx.dataset.data.reduce((a, b) => a + b, 0); return ctx.label + ': $' + formatNum(ctx.parsed) + ' (' + ((ctx.parsed / t) * 100).toFixed(1) + '%)'; } } } } }
+                    callbacks: { label: ctx => { const t = ctx.dataset.data.reduce((a, b) => a + b, 0); return ctx.label + ': ' + currencySymbol + ' ' + formatNum(ctx.parsed) + ' (' + ((ctx.parsed / t) * 100).toFixed(1) + '%)'; } } } } }
     });
 }
 
@@ -943,7 +969,7 @@ function renderReposicionTable(filtered) {
 
 function renderMoM() {
     const monthGenre = {}, months = new Set(), genres = new Set();
-    RAW_DATA.forEach(r => { months.add(r.año_mes); genres.add(r.genero); const k = r.año_mes + '|' + r.genero; monthGenre[k] = (monthGenre[k] || 0) + r.total; });
+    RAW_DATA.forEach(r => { months.add(r.año_mes); genres.add(r.genero); const k = r.año_mes + '|' + r.genero; monthGenre[k] = (monthGenre[k] || 0) + r.total * currencyFactor; });
     const sM = [...months].sort(), sG = [...genres].sort();
     if (sM.length < 3) { document.getElementById('tableMoM').innerHTML = '<p style="color:var(--text-muted)">Datos insuficientes.</p>'; return; }
     const lastThree = sM.slice(-3);
@@ -970,10 +996,14 @@ function renderMoM() {
 
 function renderHeatmap() {
     const monthGenre = {}, months = new Set(), genres = new Set();
-    RAW_DATA.forEach(r => { months.add(r.año_mes); genres.add(r.genero); const k = r.año_mes + '|' + r.genero; monthGenre[k] = (monthGenre[k] || 0) + r.total; });
+    RAW_DATA.forEach(r => { months.add(r.año_mes); genres.add(r.genero); const k = r.año_mes + '|' + r.genero; monthGenre[k] = (monthGenre[k] || 0) + r.total * currencyFactor; });
     const sM = [...months].sort(), sG = [...genres].sort();
     const data = []; let maxVal = 0;
     sG.forEach((g, gi) => { sM.forEach((m, mi) => { const v = monthGenre[m + '|' + g] || 0; if (v > maxVal) maxVal = v; data.push({ x: mi, y: gi, v }); }); });
+    
+    // Update card title to reflect selected currency
+    document.getElementById('heatmapTitle').textContent = '🗺️ Mapa de Calor Mensual — Ventas en ' + selectedCurrency + ' por Género';
+
     destroyChart('chartHeatmap');
     charts.chartHeatmap = new Chart(document.getElementById('chartHeatmap'), {
         type: 'bubble', data: { datasets: [{ data: data.map(d => ({ x: d.x, y: d.y, r: Math.max(3, (d.v / maxVal) * 22) })),
@@ -981,7 +1011,7 @@ function renderHeatmap() {
             borderColor: 'rgba(108,92,231,0.3)', borderWidth: 1 }] },
         options: { responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1B1F3B', titleFont: { family: 'Inter', weight: '600' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8,
-                callbacks: { title: ctx => { const d = data[ctx[0].dataIndex]; return sG[d.y] + ' — ' + sM[d.x]; }, label: ctx => 'Ventas: $' + formatNum(data[ctx.dataIndex].v) } } },
+                callbacks: { title: ctx => { const d = data[ctx[0].dataIndex]; return sG[d.y] + ' — ' + sM[d.x]; }, label: ctx => 'Ventas: ' + currencySymbol + ' ' + formatNum(data[ctx.dataIndex].v) } } },
             scales: { x: { type: 'linear', min: -0.5, max: sM.length - 0.5, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 10 }, stepSize: 1, callback: v => sM[v] || '' } },
                 y: { type: 'linear', min: -0.5, max: sG.length - 0.5, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, stepSize: 1, callback: v => sG[v] || '' } } } }
     });
@@ -989,7 +1019,7 @@ function renderHeatmap() {
 
 function renderPareto(filtered) {
     const bookMap = {};
-    filtered.forEach(r => { bookMap[r.titulo] = (bookMap[r.titulo] || 0) + r.total; });
+    filtered.forEach(r => { bookMap[r.titulo] = (bookMap[r.titulo] || 0) + r.total * currencyFactor; });
     const sorted = Object.entries(bookMap).sort((a, b) => b[1] - a[1]);
     const top30 = sorted.slice(0, 30), totalRev = sorted.reduce((s, e) => s + e[1], 0);
     let cum = 0;
@@ -1001,14 +1031,14 @@ function renderPareto(filtered) {
     destroyChart('chartPareto');
     charts.chartPareto = new Chart(document.getElementById('chartPareto'), {
         type: 'bar', data: { labels: top30.map((e, i) => '#' + (i + 1)),
-            datasets: [{ label: 'Ventas (USD)', data: top30.map(e => e[1]), backgroundColor: '#6C5CE7AA', borderColor: '#6C5CE7', borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 2 },
+            datasets: [{ label: 'Ventas (' + selectedCurrency + ')', data: top30.map(e => e[1]), backgroundColor: '#6C5CE7AA', borderColor: '#6C5CE7', borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 2 },
                 { label: '% Acumulado', data: cumPcts, type: 'line', borderColor: '#E17055', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, yAxisID: 'y2', order: 1 }] },
         options: { responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 14, usePointStyle: true } },
                 tooltip: { backgroundColor: '#1B1F3B', titleFont: { family: 'Inter', weight: '600' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8,
-                    callbacks: { title: ctx => top30[ctx[0].dataIndex]?.[0] || '', label: ctx => ctx.datasetIndex === 0 ? 'Ventas: $' + formatNum(ctx.parsed.y) : 'Acumulado: ' + ctx.parsed.y.toFixed(1) + '%' } } },
+                    callbacks: { title: ctx => top30[ctx[0].dataIndex]?.[0] || '', label: ctx => ctx.datasetIndex === 0 ? 'Ventas: ' + currencySymbol + ' ' + formatNum(ctx.parsed.y) : 'Acumulado: ' + ctx.parsed.y.toFixed(1) + '%' } } },
             scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } },
-                y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) } },
+                y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => currencySymbol + ' ' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) } },
                 y2: { position: 'right', min: 0, max: 105, grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => v + '%' } } } }
     });
 }
@@ -1016,7 +1046,7 @@ function renderPareto(filtered) {
 function renderDias(filtered) {
     const dayOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const dayMap = {};
-    filtered.forEach(r => { dayMap[r.dia_semana] = (dayMap[r.dia_semana] || 0) + r.total; });
+    filtered.forEach(r => { dayMap[r.dia_semana] = (dayMap[r.dia_semana] || 0) + r.total * currencyFactor; });
     const labels = dayOrder.filter(d => dayMap[d] !== undefined), values = labels.map(d => dayMap[d] || 0);
     let peakDay = labels[0], peakVal = 0;
     labels.forEach((d, i) => { if (values[i] > peakVal) { peakVal = values[i]; peakDay = d; } });
@@ -1027,9 +1057,9 @@ function renderDias(filtered) {
         type: 'bar', data: { labels, datasets: [{ data: values, backgroundColor: barColors, borderColor: labels.map(d => d === peakDay ? '#5A4BD1' : '#A29BFE'), borderWidth: 1, borderRadius: 6, barThickness: 36 }] },
         options: { responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1B1F3B', titleFont: { family: 'Inter', weight: '600' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8,
-                callbacks: { label: ctx => 'Ventas: $' + formatNum(ctx.parsed.y) } } },
+                callbacks: { label: ctx => 'Ventas: ' + currencySymbol + ' ' + formatNum(ctx.parsed.y) } } },
             scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 12, weight: '500' } } },
-                y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) } } } }
+                y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Inter', size: 11 }, callback: v => currencySymbol + ' ' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) } } } }
     });
 }
 
