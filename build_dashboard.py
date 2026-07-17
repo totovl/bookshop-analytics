@@ -73,30 +73,31 @@ html_content = f'''<!DOCTYPE html>
         *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
         
         :root {{
-            --primary: #6C5CE7;
-            --primary-light: #A29BFE;
-            --primary-dark: #5A4BD1;
-            --primary-bg: rgba(108, 92, 231, 0.08);
-            --primary-bg-hover: rgba(108, 92, 231, 0.14);
-            --success: #00B894;
-            --success-bg: rgba(0, 184, 148, 0.10);
-            --danger: #E17055;
-            --danger-bg: rgba(225, 112, 85, 0.10);
-            --warning: #FDCB6E;
-            --warning-bg: rgba(253, 203, 110, 0.12);
-            --info: #74B9FF;
-            --bg-body: #F0F2F8;
+            --primary: #2563EB;
+            --primary-light: #60A5FA;
+            --primary-dark: #1D4ED8;
+            --primary-bg: rgba(37, 99, 235, 0.08);
+            --primary-bg-hover: rgba(37, 99, 235, 0.14);
+            --success: #10B981;
+            --success-bg: rgba(16, 185, 129, 0.10);
+            --danger: #EF4444;
+            --danger-bg: rgba(239, 68, 68, 0.10);
+            --warning: #F59E0B;
+            --warning-bg: rgba(245, 158, 11, 0.12);
+            --info: #3B82F6;
+            --bg-body: #FFFFFF;
+            --bg-body-alt: #F8FAFC;
             --bg-card: #FFFFFF;
-            --bg-sidebar: #1B1F3B;
-            --bg-sidebar-hover: #272B4A;
-            --bg-sidebar-active: rgba(108, 92, 231, 0.25);
-            --text-primary: #2D3436;
-            --text-secondary: #636E72;
-            --text-muted: #B2BEC3;
-            --text-sidebar: #DFE6E9;
-            --text-sidebar-muted: #8395A7;
-            --border: #E8ECF1;
-            --border-light: #F1F3F7;
+            --bg-sidebar: #0F172A;
+            --bg-sidebar-hover: #1E293B;
+            --bg-sidebar-active: rgba(37, 99, 235, 0.25);
+            --text-primary: #1E293B;
+            --text-secondary: #475569;
+            --text-muted: #94A3B8;
+            --text-sidebar: #F1F5F9;
+            --text-sidebar-muted: #94A3B8;
+            --border: #E2E8F0;
+            --border-light: #F1F5F9;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
             --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
             --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
@@ -431,6 +432,20 @@ html_content = f'''<!DOCTYPE html>
         /* ================================================================
            SECTIONS & CARDS
            ================================================================ */
+        .dashboard-section {{
+            padding: 40px 0;
+            border-bottom: 1px solid var(--border-light);
+        }}
+        .dashboard-section:last-child {{
+            border-bottom: none;
+        }}
+        .dashboard-section.bg-light {{
+            background: var(--bg-body-alt);
+            margin-left: -36px;
+            margin-right: -36px;
+            padding-left: 36px;
+            padding-right: 36px;
+        }}
         .section-title {{
             font-size: 18px;
             font-weight: 700;
@@ -596,6 +611,7 @@ html_content = f'''<!DOCTYPE html>
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }}
+        }}
         .pareto-result {{
             margin-top: 16px;
             padding: 14px 18px;
@@ -612,18 +628,7 @@ html_content = f'''<!DOCTYPE html>
             font-size: 12px;
         }}
 
-        /* Animations */
-        @keyframes fadeInUp {{
-            from {{ opacity: 0; transform: translateY(16px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-        .animate-in {{ animation: fadeInUp 0.5s ease forwards; }}
-        .delay-1 {{ animation-delay: 0.05s; }}
-        .delay-2 {{ animation-delay: 0.10s; }}
-        .delay-3 {{ animation-delay: 0.15s; }}
-        .delay-4 {{ animation-delay: 0.20s; }}
-        .delay-5 {{ animation-delay: 0.25s; }}
-        .delay-6 {{ animation-delay: 0.30s; }}
+        /* Animations eliminadas para layout single-page */
 
         /* Scrollbar */
         ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
@@ -681,6 +686,7 @@ html_content = f'''<!DOCTYPE html>
 
 <!-- MAIN CONTENT -->
 <main class="main">
+    <section id="hero-section" class="dashboard-section bg-white">
     <div class="page-header">
         <div>
             <h1 id="overview">📊 Business Intelligence Dashboard</h1>
@@ -730,7 +736,9 @@ html_content = f'''<!DOCTYPE html>
 
     <!-- KPI CARDS -->
     <div class="kpi-grid" id="kpiGrid"></div>
+    </section>
 
+    <section id="main-analysis" class="dashboard-section bg-light">
     <!-- REVENUE & EVOLUTION -->
     <div class="section-divider"></div>
     <h2 class="section-title" id="revenue"><span class="section-icon">📈</span> Evolución Temporal & Canales Financieros</h2>
@@ -776,6 +784,9 @@ html_content = f'''<!DOCTYPE html>
         </div>
     </div>
 
+    </section>
+
+    <section id="secondary-analysis" class="dashboard-section bg-white">
     <!-- MoM TRENDS -->
     <div class="section-divider"></div>
     <h2 class="section-title" id="trends"><span class="section-icon">🔮</span> Análisis de Tendencias Trimestrales</h2>
@@ -816,6 +827,8 @@ html_content = f'''<!DOCTYPE html>
             <div class="insight-box opportunity" id="insightDias" style="margin-top: 14px;"></div>
         </div>
     </div>
+
+    </section>
 
     <div class="dashboard-footer">
         Dashboard construido para Portfolio Profesional · Datos de simulación basados en investigación de mercado editorial 2025-2026
@@ -951,7 +964,7 @@ function renderKPIs(filtered, prevFiltered) {{
 
 function kpiCard(label, value, delta, icon, iconClass, subtext, delay) {{
     const arr = delta.status === 'up' ? '↑' : delta.status === 'down' ? '↓' : '•';
-    return '<div class="kpi-card animate-in delay-' + delay + '">' +
+    return '<div class="kpi-card">' +
         '<div class="kpi-header"><div class="kpi-label">' + label + '</div><div class="kpi-icon ' + iconClass + '">' + icon + '</div></div>' +
         '<div class="kpi-value">' + value + '</div>' +
         '<div><span class="kpi-delta ' + delta.status + '">' + arr + ' ' + delta.str + '</span><span class="kpi-comparison">vs. período anterior</span></div>' +
