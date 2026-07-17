@@ -123,6 +123,20 @@ except Exception as e:
 # 3. SIDEBAR - FILTROS INTERACTIVOS
 # =============================================================================
 st.sidebar.markdown("<h2 style='color:#00ADB5; text-align:center;'>🎛️ Panel de Filtros</h2>", unsafe_allow_html=True)
+
+# --- Selector Dinámico de Moneda ---
+st.sidebar.subheader("💱 Moneda y Cotización")
+moneda = st.sidebar.selectbox("Selecciona la moneda:", options=["ARS", "USD"], index=0)
+tipo_cambio_usd_ars = st.sidebar.number_input("Cotización USD a ARS:", value=1550.0, min_value=1.0, step=10.0)
+simbolo_moneda = "$" if moneda == "ARS" else "US$"
+
+# Crear campo calculado dinámico para la moneda
+df_raw["Total_Transaccion_Calc"] = np.where(
+    moneda == "ARS", 
+    df_raw["Total_Transaccion"] * tipo_cambio_usd_ars, 
+    df_raw["Total_Transaccion"]
+)
+
 st.sidebar.write("Ajusta las variables de negocio para analizar el comportamiento:")
 
 # Filtro 1: Selector de Rango de Fechas
@@ -195,7 +209,7 @@ df_prev = df_raw[
 ]
 
 def calculate_kpis(df):
-    ingresos = df["Total_Transaccion"].sum()
+    ingresos = df["Total_Transaccion_Calc"].sum()
     unidades = df["Cantidad"].sum()
     transacciones = df["ID_Transaccion"].nunique()
     ticket_promedio = ingresos / transacciones if transacciones > 0 else 0
@@ -220,7 +234,7 @@ delta_ticket, status_ticket = get_delta_str(ticket_act, ticket_prev)
 delta_txns, status_txns = get_delta_str(txns_act, txns_prev)
 
 # Determinar Género Líder en ventas
-genero_lider_series = df_filtered.groupby("Genero")["Total_Transaccion"].sum()
+genero_lider_series = df_filtered.groupby("Genero")["Total_Transaccion_Calc"].sum()
 if not genero_lider_series.empty:
     genero_lider = genero_lider_series.idxmax()
     genero_lider_monto = genero_lider_series.max()
@@ -261,9 +275,9 @@ def render_custom_card(col, title, value, delta, status, subtext=""):
         </div>
         """, unsafe_allow_html=True)
 
-render_custom_card(col1, "Ingresos Totales", f"${ingresos_act:,.2f}", delta_ingresos, status_ingresos)
+render_custom_card(col1, "Ingresos Totales", f"{simbolo_moneda} {ingresos_act:,.2f}", delta_ingresos, status_ingresos)
 render_custom_card(col2, "Unidades Vendidas", f"{unidades_act:,}", delta_unidades, status_unidades)
-render_custom_card(col3, "Ticket Promedio", f"${ticket_act:.2f}", delta_ticket, status_ticket)
+render_custom_card(col3, "Ticket Promedio", f"{simbolo_moneda} {ticket_act:.2f}", delta_ticket, status_ticket)
 render_custom_card(col4, "Transacciones", f"{txns_act:,}", delta_txns, status_txns)
 render_custom_card(col5, "Categoría Líder", genero_lider, f"{porcentaje_lider:.1f}%", "neutral", "Participación Ventas")
 render_custom_card(col6, "Bestseller Período", libro_lider, f"{libro_lider_cant} uds", "up", "Reposición Activa")
@@ -278,15 +292,15 @@ with col_left:
     st.subheader("📈 Evolución Temporal por Género Literario")
     
     # Agrupamos por mes y por género
-    df_temporal = df_filtered.groupby(["Año_Mes", "Genero"])["Total_Transaccion"].sum().reset_index()
+    df_temporal = df_filtered.groupby(["Año_Mes", "Genero"])["Total_Transaccion_Calc"].sum().reset_index()
     
     fig_lineas = px.line(
         df_temporal,
         x="Año_Mes",
-        y="Total_Transaccion",
+        y="Total_Transaccion_Calc",
         color="Genero",
         title="Facturación Mensual Acumulada por Categoría",
-        labels={"Año_Mes": "Mes", "Total_Transaccion": "Ingresos (USD)", "Genero": "Categoría"},
+        labels={"Año_Mes": "Mes", "Total_Transaccion_Calc": f"Ingresos ({moneda})", "Genero": "Categoría"},
         color_discrete_sequence=px.colors.qualitative.Bold
     )
     
@@ -309,7 +323,7 @@ with col_right:
     # Agrupar transacciones y montos por método de pago
     df_pagos = df_filtered.groupby("Metodo_Pago").agg(
         Transacciones=("ID_Transaccion", "count"),
-        Monto=("Total_Transaccion", "sum")
+        Monto=("Total_Transaccion_Calc", "sum")
     ).reset_index()
     
     # Añadir columna de comisiones estimadas reales de pasarelas de pago
@@ -348,7 +362,7 @@ with col_right:
         height=380,
         annotations=[
             dict(
-                text=f"Fuga Comisiones:<br><b>${total_comision:,.1f}</b>",
+                text=f"Fuga Comisiones:<br><b>{simbolo_moneda} {total_comision:,.1f}</b>",
                 showarrow=False,
                 font=dict(size=14, color="#EF4444")
             )
@@ -356,7 +370,7 @@ with col_right:
     )
     st.plotly_chart(fig_donut, use_container_width=True)
     st.markdown(f"""
-    💡 **Análisis de pasarelas**: Se estiman pérdidas de **${total_comision:,.2f}** por aranceles bancarios. 
+    💡 **Análisis de pasarelas**: Se estiman pérdidas de **{simbolo_moneda} {total_comision:,.2f}** por aranceles bancarios. 
     *Tip de Negocio*: Incentivar Transferencias bancarias y Efectivo para reducir el impacto financiero.
     """)
 
@@ -424,10 +438,10 @@ st.subheader("🔮 Análisis de Tendencias Trimestrales (Hacia dónde va el nego
 
 # Lógica para análisis MoM (Month over Month) de tendencias recientes
 # Agrupamos facturación por mes y género para calcular el histórico
-df_mom = df_raw.groupby(["Año_Mes", "Genero"])["Total_Transaccion"].sum().reset_index()
+df_mom = df_raw.groupby(["Año_Mes", "Genero"])["Total_Transaccion_Calc"].sum().reset_index()
 
 # Pivotamos para tener meses como filas y géneros como columnas
-pivot_mom = df_mom.pivot(index="Año_Mes", columns="Genero", values="Total_Transaccion").fillna(0)
+pivot_mom = df_mom.pivot(index="Año_Mes", columns="Genero", values="Total_Transaccion_Calc").fillna(0)
 
 # Calcular tasa de crecimiento MoM para todos los meses (porcentaje de cambio)
 mom_growth = pivot_mom.pct_change(fill_method=None) * 100
@@ -493,14 +507,14 @@ else:
 
 # Heatmap de Estacionalidad de Ventas (Extra analítico de alto impacto)
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("#### 🗺️ Mapa de Calor Mensual (Ventas en USD por Género)")
+st.markdown(f"#### 🗺️ Mapa de Calor Mensual (Ventas en {moneda} por Género)")
 st.write("Identifica picos y ciclos estacionales de ventas para planificar campañas de marketing y stock mínimo.")
 
 # Armar datos para heatmap
 heatmap_data = pivot_mom.T  # Géneros en filas, meses en columnas
 fig_heatmap = px.imshow(
     heatmap_data,
-    labels=dict(x="Mes", y="Género Literario", color="Ventas (USD)"),
+    labels=dict(x="Mes", y="Género Literario", color=f"Ventas ({moneda})"),
     x=heatmap_data.columns,
     y=heatmap_data.index,
     color_continuous_scale="Viridis",
@@ -528,9 +542,9 @@ with col_pareto:
     st.write("¿Qué proporción de los títulos representa el 80% de los ingresos totales de la librería?")
     
     # Calcular Pareto
-    df_pareto = df_filtered.groupby("Titulo")["Total_Transaccion"].sum().sort_values(ascending=False).reset_index()
-    df_pareto["Acumulado"] = df_pareto["Total_Transaccion"].cumsum()
-    total_recaudacion = df_pareto["Total_Transaccion"].sum()
+    df_pareto = df_filtered.groupby("Titulo")["Total_Transaccion_Calc"].sum().sort_values(ascending=False).reset_index()
+    df_pareto["Acumulado"] = df_pareto["Total_Transaccion_Calc"].cumsum()
+    total_recaudacion = df_pareto["Total_Transaccion_Calc"].sum()
     df_pareto["% Acumulado"] = (df_pareto["Acumulado"] / total_recaudacion) * 100
     df_pareto["Indice_Libro"] = df_pareto.index + 1
     df_pareto["% Libros"] = (df_pareto["Indice_Libro"] / len(df_pareto)) * 100
@@ -545,7 +559,7 @@ with col_pareto:
     fig_pareto.add_trace(
         go.Bar(
             x=df_pareto["Titulo"][:30], # Top 30 para visualización limpia
-            y=df_pareto["Total_Transaccion"][:30],
+            y=df_pareto["Total_Transaccion_Calc"][:30],
             name="Ventas Individuales",
             marker=dict(color="#00ADB5")
         )
@@ -568,7 +582,7 @@ with col_pareto:
         font=dict(color="#F8FAFC"),
         margin=dict(l=10, r=10, t=40, b=10),
         xaxis=dict(showticklabels=False), # Ocultar nombres de libros abajo para evitar amontonamiento
-        yaxis=dict(title="Ventas Unitarias (USD)", gridcolor="rgba(255,255,255,0.05)"),
+        yaxis=dict(title=f"Ventas Unitarias ({moneda})", gridcolor="rgba(255,255,255,0.05)"),
         yaxis2=dict(title="% Acumulado", overlaying="y", side="right", range=[0, 105], showgrid=False),
         legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="left", x=0),
         height=380
@@ -585,15 +599,15 @@ with col_dias:
     st.write("Identifica patrones semanales de consumo para organizar promociones y personal de caja.")
     
     # Agrupar ventas por día
-    df_dias = df_filtered.groupby(["Dia_Semana_ES", "Dia_Semana_N"])["Total_Transaccion"].sum().reset_index()
+    df_dias = df_filtered.groupby(["Dia_Semana_ES", "Dia_Semana_N"])["Total_Transaccion_Calc"].sum().reset_index()
     df_dias = df_dias.sort_values(by="Dia_Semana_N")
     
     fig_dias = px.bar(
         df_dias,
         x="Dia_Semana_ES",
-        y="Total_Transaccion",
+        y="Total_Transaccion_Calc",
         title="Facturación Total según Día de la Semana",
-        labels={"Dia_Semana_ES": "Día de la Semana", "Total_Transaccion": "Ventas (USD)"},
+        labels={"Dia_Semana_ES": "Día de la Semana", "Total_Transaccion_Calc": f"Ventas ({moneda})"},
         color_discrete_sequence=["#00E8C6"]
     )
     
@@ -609,7 +623,7 @@ with col_dias:
     st.plotly_chart(fig_dias, use_container_width=True)
     
     # Día pico
-    dia_pico = df_dias.loc[df_dias["Total_Transaccion"].idxmax()]["Dia_Semana_ES"]
+    dia_pico = df_dias.loc[df_dias["Total_Transaccion_Calc"].idxmax()]["Dia_Semana_ES"]
     st.markdown(f"""
     🛒 **Día de mayor afluencia**: El día comercial líder del período es el **{dia_pico}**.  
     *Estrategia*: Considerar el lanzamiento de promociones relámpago a mitad de semana (Martes/Miércoles) para suavizar la estacionalidad semanal y equilibrar las operaciones físicas.
