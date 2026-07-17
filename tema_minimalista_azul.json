@@ -1,0 +1,59 @@
+{
+  "name": "Minimalist Blue & White",
+  "dataColors": [
+    "#0066CC",
+    "#0099FF",
+    "#33B5FF",
+    "#66C7FF",
+    "#99D8FF",
+    "#CCE8FF",
+    "#E6F2FF",
+    "#1C3D5A"
+  ],
+  "background": "#FFFFFF",
+  "foreground": "#1A1A1A",
+  "tableAccent": "#0066CC",
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [
+          {
+            "show": true,
+            "color": { "solid": { "color": "#FFFFFF" } },
+            "transparency": 0
+          }
+        ],
+        "border": [
+          {
+            "show": true,
+            "color": { "solid": { "color": "#E2E8F0" } },
+            "width": 1
+          }
+        ],
+        "dropShadow": [
+          {
+            "show": false
+          }
+        ],
+        "title": [
+          {
+            "show": true,
+            "fontColor": { "solid": { "color": "#0F172A" } },
+            "fontSize": 13,
+            "fontFamily": "Segoe UI"
+          }
+        ]
+      }
+    },
+    "page": {
+      "*": {
+        "background": [
+          {
+            "color": { "solid": { "color": "#F8FAFC" } },
+            "transparency": 0
+          }
+        ]
+      }
+    }
+  }
+}
